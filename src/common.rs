@@ -1,40 +1,49 @@
 use secp256kfun::{g, marker::*, Point, Scalar};
 use sha2::{digest::Digest, Sha256};
 
+#[derive(Clone, Debug)]
 pub struct Params {
-    pub oracle_key: Point,
-    pub oracle_nonce: Point,
-    pub closed_proportion: f32,
-    pub bucket_size: usize,
-    pub n_outcomes: usize,
+    pub oracle_keys: Vec<(Point, Point)>,
+    pub closed_proportion: f64,
+    pub bucket_size: u8,
+    pub threshold: u16,
+    pub n_outcomes: u32,
     pub elgamal_base: Point,
 }
 
 impl Params {
     pub fn M(&self) -> usize {
-        ((self.bucket_size * self.n_outcomes) as f32 / self.closed_proportion).ceil() as usize
+        (self.NB() as f64 / self.closed_proportion).ceil() as usize
     }
 
     pub fn NB(&self) -> usize {
-        self.n_outcomes * self.bucket_size
+        self.bucket_size as usize * self.n_outcomes as usize * self.oracle_keys.len()
     }
 
     pub fn num_openings(&self) -> usize {
         self.M() - self.NB()
     }
 
-    pub fn iter_anticipations(&self) -> impl Iterator<Item = Point<Jacobian, Public, Zero>> {
-        let mut acc = self.oracle_key.clone().mark::<(Jacobian, Zero)>();
-        let nonce = self.oracle_nonce.clone();
+    pub fn iter_anticipations(
+        &self,
+        oracle_index: usize,
+    ) -> impl Iterator<Item = Point<Jacobian, Public, Zero>> {
+        let mut acc = self.oracle_keys[oracle_index].0.mark::<(Jacobian, Zero)>();
+        let nonce = self.oracle_keys[oracle_index].1;
         (0..self.n_outcomes).map(move |_| {
             acc = g!(nonce + acc);
             acc
         })
     }
 
-    pub fn anticipate_at_index(&self, index: u32) -> Point<Jacobian, Public, Zero> {
+    pub fn anticipate_at_index(
+        &self,
+        oracle_index: usize,
+        index: u32,
+    ) -> Point<Jacobian, Public, Zero> {
         let index = Scalar::from(index);
-        g!(self.oracle_key + (index + 1) * self.oracle_nonce)
+        let (oracle_key, oracle_nonce) = self.oracle_keys[oracle_index];
+        g!(oracle_key + (index + 1) * oracle_nonce)
     }
 }
 
@@ -53,4 +62,30 @@ pub fn map_G_to_Zq(point: Point, pad: [u8; 32]) -> Scalar<Secret, Zero> {
         *xor_byte ^= pad_byte
     }
     Scalar::from_bytes_mod_order(ri_bytes.try_into().unwrap())
+}
+
+pub fn compute_optimal_params(s: u8, N: u32) -> (f64, u8) {
+    if N == 1 {
+        return (0.5, s);
+    }
+    let N = N as f64;
+    let s = s as f64;
+    // Since we have
+    let s = s - N.log2();
+
+    let (B, p, _) = (500..999)
+        .filter_map(|p| {
+            let p = (p as f64) / 1000.0;
+            if N < (1.0 / (1.0 - p)) {
+                return None;
+            }
+            let B = (s as f64 + (N as f64).log2() - p.log2())
+                / ((N - N * p).log2() - p.log2() / (1.0 - p));
+            let score = ((B * N) / p).ceil() as u64;
+            Some((B.ceil() as u8, p, score))
+        })
+        .min_by_key(|(_, _, score)| *score)
+        .unwrap();
+
+    (p, B)
 }

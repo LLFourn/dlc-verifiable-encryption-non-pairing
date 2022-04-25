@@ -1,5 +1,6 @@
 use schnorr_fun::fun::{marker::*, Point, Scalar};
 use std::collections::BTreeSet;
+use crate::poly::PointPoly;
 
 #[derive(Debug, Clone)]
 pub struct Message1 {
@@ -22,5 +23,6 @@ pub struct Message2 {
 #[derive(Debug, Clone)]
 pub struct Message3 {
     pub encryptions: Vec<(crate::dleq::Proof, Point, Scalar<Secret, Zero>)>,
+    pub polys: Vec<PointPoly>,
     pub openings: Vec<Scalar>,
 }

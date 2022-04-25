@@ -41,8 +41,8 @@ impl Bob1 {
 
     pub fn receive_message(
         self,
-        message: Message3,
-        anticipated_sigs: Vec<Point>,
+        mut message: Message3,
+        sig_images: Vec<Point>,
         params: &Params,
     ) -> anyhow::Result<Bob2> {
         let Bob1 {
@@ -80,77 +80,144 @@ impl Bob1 {
             }
         }
 
-        let mut buckets = Vec::with_capacity(params.bucket_size * params.n_outcomes);
+        let mut buckets = Vec::with_capacity(params.NB());
 
         for (from, encryption) in message2.bucket_mapping.into_iter().zip(message.encryptions) {
             buckets.push((commits[from], encryption));
         }
 
         let proof_system = crate::dleq::ProofSystem::default();
-        let mut anticipated_points = params.iter_anticipations();
-        let mut encryption_buckets = vec![];
+        let n_oracles = params.oracle_keys.len();
+        let mut anticipated_attestations = (0..n_oracles)
+            .map(|oracle_index| params.iter_anticipations(oracle_index))
+            .collect::<Vec<_>>();
+        let mut outcome_buckets = vec![];
 
-        for (bucket_index, bucket) in buckets.chunks(params.bucket_size).enumerate() {
-            let sig_point = anticipated_points.next().unwrap();
-            let mut encryption_bucket = vec![];
-            let anticipated_sig = &anticipated_sigs[bucket_index];
-            for (commit, (proof, encryption, padded_sig)) in bucket {
-                if !crate::dleq::verify_eqaulity(
-                    &proof_system,
-                    proof,
-                    *encryption,
-                    sig_point,
-                    params.elgamal_base,
-                    commit.C,
-                ) {
-                    return Err(anyhow!(
-                        "proof of equality between ciphertext and commitment was invalid"
-                    ));
+        for (outcome_index, buckets) in buckets
+            .chunks(params.bucket_size as usize * n_oracles)
+            .enumerate()
+        {
+            let sig_image = sig_images[outcome_index];
+            let mut oracle_buckets = vec![];
+            let poly = &mut message.polys[outcome_index];
+            poly.push_front(sig_image);
+            for (oracle_index, bucket) in buckets.chunks(params.bucket_size as usize).enumerate() {
+                let anticipated_attestation =
+                    anticipated_attestations[oracle_index].next().unwrap();
+                let mut oracle_bucket = vec![];
+                let sig_share_image = poly.eval((oracle_index + 1) as u32).normalize();
+                for (commit, (proof, encryption, padded_sig)) in bucket {
+                    if !crate::dleq::verify_eqaulity(
+                        &proof_system,
+                        proof,
+                        *encryption,
+                        anticipated_attestation,
+                        params.elgamal_base,
+                        commit.C,
+                    ) {
+                        return Err(anyhow!(
+                            "proof of equality between ciphertext and commitment was invalid"
+                        ));
+                    }
+
+                    if g!(sig_share_image + commit.R) != g!(padded_sig * G) {
+                        return Err(anyhow!("padded sig wasn't valid"));
+                    }
+
+                    oracle_bucket.push(((commit.C.0, *encryption), padded_sig.clone(), commit.pad));
                 }
-
-                if g!(anticipated_sig + commit.R) != g!(padded_sig * G) {
-                    return Err(anyhow!("padded sig wasn't valid"));
-                }
-
-                encryption_bucket.push(((commit.C.0, *encryption), padded_sig.clone(), commit.pad));
+                oracle_buckets.push((oracle_bucket, sig_share_image))
             }
-            encryption_buckets.push((encryption_bucket, *anticipated_sig));
+            outcome_buckets.push((oracle_buckets, sig_image));
         }
 
-        Ok(Bob2 { encryption_buckets })
+        Ok(Bob2 { outcome_buckets })
     }
 }
 
 pub struct Bob2 {
-    encryption_buckets: Vec<(Vec<((Point, Point), Scalar<Secret, Zero>, [u8; 32])>, Point)>,
+    outcome_buckets: Vec<(
+        // for every outcome:
+        // 1. A list of entries corresponding to oracles
+        Vec<(
+            // For every oracle:
+            // 1. A list of encryptions (all encrypting the same signature share)
+            Vec<((Point, Point), Scalar<Secret, Zero>, [u8; 32])>,
+            // 2. The image of the signature share that will be encrypted
+            Point<Normal, Public, Zero>,
+        )>,
+        // 2. The sig image that should be unlocked iwth this outcome
+        Point,
+    )>,
 }
 
 impl Bob2 {
     pub fn receive_oracle_attestation(
         mut self,
-        index: usize,
-        attestation: Scalar<Public, Zero>,
+        outcome_index: u32,
+        attestations: Vec<Scalar<Public, Zero>>,
         params: &Params,
     ) -> anyhow::Result<Scalar<Public, Zero>> {
-        let bucket = self.encryption_buckets.remove(index);
-        if g!(attestation * G) != params.anticipate_at_index(index as u32) {
-            return Err(anyhow!("attestation didn't match anticipated attestation"));
-        }
-        let anticipated_sig = &bucket.1;
-        let sig = bucket.0.iter().find_map(|(encryption, padded_sig, pad)| {
-            // let ri_mapped = &encryption.1 - e(&attestation, &encryption.0);
-            let ri_mapped = g!({ encryption.1 } - attestation * { encryption.0 })
-                .normalize()
-                .mark::<NonZero>()?;
-            let ri = crate::common::map_G_to_Zq(ri_mapped, *pad);
-            let sig = s!(padded_sig - ri).mark::<Public>();
-            if &g!(sig * G) == anticipated_sig {
-                Some(sig)
-            } else {
-                None
+        let (outcome_bucket, sig_image) = self.outcome_buckets.remove(outcome_index as usize);
+        let mut sig_shares = vec![];
+        for (oracle_index, ((oracle_bucket, sig_share_image), attestation)) in
+            outcome_bucket.into_iter().zip(attestations).enumerate()
+        {
+            if g!(attestation * G) != params.anticipate_at_index(oracle_index, outcome_index) {
+                eprintln!("attestation didn't match anticipated attestation");
+                continue;
             }
-        });
 
-        sig.ok_or(anyhow!("all the ciphertexts were malicious!"))
+            for (encryption, padded_sig_share, pad) in oracle_bucket {
+                if let Some(ri_mapped) = g!({ encryption.1 } - attestation * { encryption.0 })
+                    .normalize()
+                    .mark::<NonZero>()
+                {
+                    let ri = crate::common::map_G_to_Zq(ri_mapped, pad);
+                    let sig_share = s!(padded_sig_share - ri).mark::<Public>();
+                    let got_sig_share_image = g!(sig_share * G);
+                    if got_sig_share_image == sig_share_image {
+                        sig_shares.push((
+                            Scalar::from(oracle_index as u32 + 1).expect_nonzero("added 1"),
+                            sig_share,
+                        ));
+                        break;
+                    } else {
+                        eprintln!(
+                            "Found a malicious encryption. Expecting {:?} got {:?}",
+                            sig_share_image, got_sig_share_image
+                        );
+                    }
+                }
+            }
+        }
+
+        if sig_shares.len() >= params.threshold as usize {
+            let shares = &sig_shares[0..params.threshold as usize];
+
+            let secret_sig = shares.iter().fold(s!(0), |acc, (x_j, y_j)| {
+                let x_ms = shares
+                    .iter()
+                    .map(|(x_m, _)| x_m)
+                    .filter(|x_m| x_m != &x_j)
+                    .collect::<Vec<_>>();
+                let (num, denom) = x_ms.iter().fold((s!(1), s!(1)), |(acc_n, acc_d), x_m| {
+                    (
+                        s!(acc_n * { x_m }),
+                        s!(acc_d * ({ x_m } - x_j)).expect_nonzero("unreachable"),
+                    )
+                });
+                let lagrange_coeff = s!(num * { denom.invert() });
+                s!(acc + lagrange_coeff * y_j)
+            });
+
+            if g!(secret_sig * G) != sig_image {
+                return Err(anyhow!("the sig we recovered"));
+            }
+
+            Ok(secret_sig.mark::<Public>())
+        } else {
+            Err(anyhow!("not enough shares to reconstruct secret!"))
+        }
     }
 }
