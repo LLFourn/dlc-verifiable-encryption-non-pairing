@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
         .collect::<Vec<_>>();
 
     let (closed_proportion, bucket_size) =
-        compute_optimal_params(args.s, args.n_outcomes as u32 * args.n_oracles as u32);
+        compute_optimal_params(args.s, args.n_outcomes as u32, args.n_oracles as u32);
     let params = Params {
         oracle_keys: oracles
             .iter()

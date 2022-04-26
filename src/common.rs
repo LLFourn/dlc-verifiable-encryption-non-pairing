@@ -64,25 +64,31 @@ pub fn map_G_to_Zq(point: Point, pad: [u8; 32]) -> Scalar<Secret, Zero> {
     Scalar::from_bytes_mod_order(ri_bytes.try_into().unwrap())
 }
 
-pub fn compute_optimal_params(s: u8, N: u32) -> (f64, u8) {
-    if N == 1 {
-        return (0.5, s);
+pub fn compute_optimal_params(security_param: u8, n_outcomes: u32, n_oracles: u32) -> (f64, u8) {
+    if n_outcomes * n_oracles == 1 {
+        // this is cheating and not quite right
+        return (0.5, security_param);
     }
-    let N = N as f64;
-    let s = s as f64;
-    // Since we have
-    let s = s - N.log2();
+    let n_outcomes = n_outcomes as f64;
+    let n_oracles = n_oracles as f64;
+    let N = n_outcomes * n_oracles;
+    let s = security_param as f64;
+    // In order to actually succeed the adversary most corrupt a bucket the chosen outcome. This
+    // happens with (1/<number of outcomes>) probability so we can relax overall security parameter
+    // by log2(<number of outcomes>).
+    let s = s - n_outcomes.log2();
 
     let (B, p, _) = (500..999)
         .filter_map(|p| {
             let p = (p as f64) / 1000.0;
+            // requirement for the formula below to hold
             if N < (1.0 / (1.0 - p)) {
                 return None;
             }
-            let B = (s as f64 + (N as f64).log2() - p.log2())
-                / ((N - N * p).log2() - p.log2() / (1.0 - p));
+            let B = ((s as f64 + (N as f64).log2() - p.log2())
+                / ((N - N * p).log2() - p.log2() / (1.0 - p))).ceil();
             let score = ((B * N) / p).ceil() as u64;
-            Some((B.ceil() as u8, p, score))
+            Some((B as u8, p, score))
         })
         .min_by_key(|(_, _, score)| *score)
         .unwrap();
