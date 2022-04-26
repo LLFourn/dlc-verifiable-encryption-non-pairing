@@ -86,7 +86,8 @@ pub fn compute_optimal_params(security_param: u8, n_outcomes: u32, n_oracles: u3
                 return None;
             }
             let B = ((s as f64 + (N as f64).log2() - p.log2())
-                / ((N - N * p).log2() - p.log2() / (1.0 - p))).ceil();
+                / ((N - N * p).log2() - p.log2() / (1.0 - p)))
+                .ceil();
             let score = ((B * N) / p).ceil() as u64;
             Some((B as u8, p, score))
         })

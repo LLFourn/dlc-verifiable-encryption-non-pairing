@@ -1,5 +1,6 @@
 use rand::{CryptoRng, RngCore};
 use secp256kfun::{g, marker::*, op, s, Point, Scalar, G};
+use serde::Serialize;
 use std::iter;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -45,10 +46,10 @@ impl ScalarPoly {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PointPoly<Z = NonZero>(Vec<Point<Normal, Public, Z>>);
+#[derive(Debug, Clone, Serialize)]
+pub struct PointPoly(Vec<Point<Normal, Public, NonZero>>);
 
-impl<Z> PointPoly<Z> {
+impl PointPoly {
     pub fn eval(&self, x: u32) -> Point<Jacobian, Public, Zero> {
         let x = Scalar::from(x)
             .expect_nonzero("must be non-zero")
@@ -65,7 +66,7 @@ impl<Z> PointPoly<Z> {
         self.0.len()
     }
 
-    pub fn points(&self) -> &[Point<Normal, Public, Z>] {
+    pub fn points(&self) -> &[Point<Normal, Public, NonZero>] {
         &self.0
     }
 
@@ -73,7 +74,7 @@ impl<Z> PointPoly<Z> {
         self.0.remove(0);
     }
 
-    pub fn push_front(&mut self, point: Point<Normal, Public, Z>) {
+    pub fn push_front(&mut self, point: Point<Normal, Public, NonZero>) {
         self.0.insert(0, point)
     }
 }
