@@ -1,5 +1,5 @@
 use crate::poly::PointPoly;
-use schnorr_fun::fun::{marker::*, Point, Scalar};
+use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
 use serde::Serialize;
 use std::collections::BTreeSet;
 
@@ -21,9 +21,10 @@ pub struct Message2 {
     pub openings: BTreeSet<usize>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Message3 {
-    pub encryptions: Vec<(crate::dleq::Proof, Point, Scalar<Secret, Zero>)>,
+    pub proof: crate::dleq::Proof,
+    pub encryptions: Vec<(Point, Scalar)>,
     pub polys: Vec<PointPoly>,
     pub openings: Vec<Scalar>,
 }

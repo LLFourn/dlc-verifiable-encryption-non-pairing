@@ -1,13 +1,13 @@
 use clap::Parser;
-
 use dlc_venc_adaptor::{
+    G,
     alice::*,
     bob::*,
     common::{compute_optimal_params, Params},
     oracle::Oracle,
 };
 use rand::Rng;
-use secp256kfun::{g, Point, Scalar, G};
+use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
 use serde::Serialize;
 use std::time::Instant;
 
@@ -53,7 +53,7 @@ fn main() -> anyhow::Result<()> {
     let secret_sigs = (0..params.n_outcomes)
         .map(|_| Scalar::random(&mut rand::thread_rng()))
         .collect::<Vec<_>>();
-    let anticipated_sigs = secret_sigs.iter().map(|s| g!(s * G).normalize()).collect();
+    let anticipated_sigs = secret_sigs.iter().map(|s| s * &*G).collect();
 
     println!("Params s: {} n_oracles: {} threshold: {} n_encryptions: {} bucket_size: {} proportion_closed: {}", args.s, args.n_oracles, args.threshold, params.M(), params.bucket_size, params.closed_proportion);
     let start_round1 = Instant::now();
@@ -95,7 +95,7 @@ fn main() -> anyhow::Result<()> {
         total_transmit_non_interactive
     );
 
-    let outcome_index = rand::thread_rng().gen_range(0..args.n_outcomes);
+    let outcome_index = rand::thread_rng().gen_range(0, args.n_outcomes);
 
     let attestations = oracles
         .iter()
@@ -104,7 +104,7 @@ fn main() -> anyhow::Result<()> {
     println!("got attestation");
     let scalar = bob.receive_oracle_attestation(outcome_index, attestations, &params)?;
 
-    println!("got the secret sig {}", scalar);
+    println!("got the secret sig {:?}", scalar);
 
     Ok(())
 }

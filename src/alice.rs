@@ -1,7 +1,10 @@
 use crate::common::Params;
 use crate::messages::*;
 use anyhow::anyhow;
-use secp256kfun::{g, s, Point, Scalar, G};
+use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
+use crate::G;
+use zkp::{toolbox::prover::Prover, Transcript};
+
 pub struct Alice1 {
     secrets: Vec<(Scalar, Scalar, Point)>,
     commits: Vec<Commit>,
@@ -17,13 +20,11 @@ impl Alice1 {
                     (padi, ri, ri_mapped)
                 };
 
-                let Ri = g!(ri * G).normalize();
+                let Ri = &ri * &*G;
                 let ri_prime = Scalar::random(&mut rand::thread_rng());
                 let C_i = (
-                    g!(ri_prime * G).normalize(),
-                    g!(ri_prime * params.elgamal_base + ri_mapped)
-                        .normalize()
-                        .expect_nonzero("computationally unreachable"),
+                    &ri_prime * &*G,
+                   ri_prime * params.elgamal_base + ri_mapped
                 );
 
                 (
@@ -102,7 +103,6 @@ impl Alice1 {
             buckets.push((commits[from], &secrets[from]));
         }
 
-        let proof_system = crate::dleq::ProofSystem::default();
         let n_oracles = params.oracle_keys.len();
         let mut anticipated_attestations = (0..n_oracles)
             .map(|oracle_index| params.iter_anticipations(oracle_index))
@@ -122,6 +122,9 @@ impl Alice1 {
 
         let mut encryptions = vec![];
 
+        let mut transcript = Transcript::new(b"dlc-dleqs");
+        let mut prover = Prover::new(b"dlc-dleqs", &mut transcript);
+
         for (outcome_index, buckets) in buckets
             .chunks(params.bucket_size as usize * n_oracles)
             .enumerate()
@@ -133,13 +136,11 @@ impl Alice1 {
                 let secret_sig_share = scalar_poly.eval((oracle_index + 1) as u32);
                 for (commit, (ri, ri_prime, ri_mapped)) in bucket {
                     // compute the ElGamal encryption to the signature of ri_mapped
-                    let ri_encryption = g!(ri_prime * anticipated_attestation + ri_mapped)
-                        .expect_nonzero("computationally unreachable")
-                        .normalize();
+                    let ri_encryption = ri_prime * anticipated_attestation + ri_mapped;
                     // create proof ElGamal encryption value is same as commitment
 
-                    let proof = crate::dleq::prove_eqaulity(
-                        &proof_system,
+                    crate::dleq::prove_eqaulity(
+                        &mut prover,
                         ri_prime.clone(),
                         ri_encryption,
                         anticipated_attestation,
@@ -149,11 +150,13 @@ impl Alice1 {
 
                     // assert!(crate::dleq::verify_eqaulity(&proof_system, &proof, ri_encryption, sig_point, params.elgamal_base, commit.C));
                     // one-time pad of the signature in Z_q
-                    let padded_secret = s!(ri + secret_sig_share);
-                    encryptions.push((proof, ri_encryption, padded_secret));
+                    let padded_secret = ri + secret_sig_share;
+                    encryptions.push((ri_encryption, padded_secret));
                 }
             }
         }
+
+        let proof = prover.prove_batchable();
 
         let polys = scalar_polys
             .into_iter()
@@ -164,6 +167,7 @@ impl Alice1 {
             .collect();
 
         Ok(Message3 {
+            proof,
             encryptions,
             openings,
             polys,

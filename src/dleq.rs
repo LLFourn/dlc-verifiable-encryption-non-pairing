@@ -1,48 +1,48 @@
-use rand_chacha::ChaCha20Rng;
-use secp256kfun::{g, marker::*, Point, Scalar, G};
-use sha2::Sha256;
-use sigma_fun::{secp256k1::DL, typenum::U32, CompactProof, Eq, FiatShamir, HashTranscript};
+use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
+use crate::G;
+use zkp::{toolbox::{prover::Prover, SchnorrCS, verifier::Verifier}, BatchableProof};
 
-type DLEQ = Eq<DL<U32>, DL<U32>>;
-pub type Proof = CompactProof<DLEQ>;
-pub type ProofSystem = FiatShamir<DLEQ, HashTranscript<Sha256, ChaCha20Rng>>;
+pub type Proof = BatchableProof;
 
 pub fn prove_eqaulity(
-    proof_system: &ProofSystem,
+    prover: &mut Prover<'_>,
     ri_prime: Scalar,
-    ri_encryption: Point<impl PointType>,
-    sig_point: Point<impl PointType, impl Secrecy, impl ZeroChoice>,
+    ri_encryption: Point,
+    sig_point: Point,
     commit_base: Point,
     commit: (Point, Point),
-) -> Proof {
-    let enc_sub = g!(ri_encryption - { commit.1 })
-        .normalize()
-        .expect_nonzero("TODO: handle zero");
-    let sig_sub = g!(sig_point - commit_base)
-        .normalize()
-        .expect_nonzero("TODO: handle zero");
-    let statement = ((G.clone().mark::<Normal>(), commit.0), (sig_sub, enc_sub));
-    let witness = ri_prime;
+) {
+    let enc_sub = ri_encryption - commit.1;
+    let sig_sub = sig_point - commit_base ;
+    let statement = ((G.basepoint(), commit.0), (sig_sub, enc_sub));
+    let witness = prover.allocate_scalar(b"ri_prime", ri_prime);
 
-    let proof = proof_system.prove(&witness, &statement, Some(&mut rand::thread_rng()));
-    proof
+    let p_0_0 = prover.allocate_point(b"0.0", statement.0.0).0;
+    let p_0_1 = prover.allocate_point(b"0.1", statement.0.1).0;
+    let p_1_0 = prover.allocate_point(b"1.0", statement.1.0).0;
+    let p_1_1 = prover.allocate_point(b"1.1", statement.1.1).0;
+
+    prover.constrain(p_0_1, vec![(witness, p_0_0)]);
+    prover.constrain(p_1_1, vec![(witness, p_1_0)]);
 }
 
 pub fn verify_eqaulity(
-    proof_system: &ProofSystem,
-    proof: &Proof,
-    ri_encryption: Point<impl PointType>,
-    sig_point: Point<impl PointType, impl Secrecy, impl ZeroChoice>,
+    verifier: &mut Verifier<'_>,
+    ri_encryption: Point,
+    sig_point: Point,
     commit_base: Point,
     commit: (Point, Point),
-) -> bool {
-    let enc_sub = g!(ri_encryption - { commit.1 })
-        .normalize()
-        .expect_nonzero("TODO: handle zero");
-    let sig_sub = g!(sig_point - commit_base)
-        .normalize()
-        .expect_nonzero("TODO: handle zero");
-    let statement = ((G.clone().mark::<Normal>(), commit.0), (sig_sub, enc_sub));
+) {
+    let enc_sub =ri_encryption - commit.1;
+    let sig_sub =sig_point - commit_base;
+    let statement = ((G.basepoint(), commit.0), (sig_sub, enc_sub));
+    let witness_var = verifier.allocate_scalar(b"ri_prime");
 
-    proof_system.verify(&statement, proof)
+    let p_0_0 = verifier.allocate_point(b"0.0", statement.0.0.compress()).unwrap();
+    let p_0_1 = verifier.allocate_point(b"0.1", statement.0.1.compress()).unwrap();
+    let p_1_0 = verifier.allocate_point(b"1.0", statement.1.0.compress()).unwrap();
+    let p_1_1 = verifier.allocate_point(b"1.1", statement.1.1.compress()).unwrap();
+
+    verifier.constrain(p_0_1, vec![(witness_var, p_0_0)]);
+    verifier.constrain(p_1_1, vec![(witness_var, p_1_0)]);
 }

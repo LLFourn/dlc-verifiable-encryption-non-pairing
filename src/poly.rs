@@ -1,28 +1,27 @@
 use rand::{CryptoRng, RngCore};
-use secp256kfun::{g, marker::*, op, s, Point, Scalar, G};
+use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point, traits::VartimeMultiscalarMul};
 use serde::Serialize;
 use std::iter;
+use crate::G;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarPoly(Vec<Scalar>);
 
 impl ScalarPoly {
-    pub fn eval(&self, x: u32) -> Scalar<Secret, Zero> {
-        let x = Scalar::from(x)
-            .expect_nonzero("must be non-zero")
-            .mark::<Public>();
-        let mut xpow = s!(1).mark::<Public>();
+    pub fn eval(&self, x: u32) -> Scalar {
+        let x = Scalar::from(x);
+        let mut xpow = Scalar::from(1u32);
         self.0
             .iter()
             .skip(1)
-            .fold(self.0[0].clone().mark::<Zero>(), move |sum, coeff| {
-                xpow = s!(xpow * x).mark::<Public>();
-                s!(sum + xpow * coeff)
+            .fold(self.0[0], move |sum, coeff| {
+                xpow = xpow * x;
+                sum + xpow * coeff
             })
     }
 
     pub fn to_point_poly(&self) -> PointPoly {
-        PointPoly(self.0.iter().map(|a| g!(a * G).normalize()).collect())
+        PointPoly(self.0.iter().map(|a| a * &*G).collect())
     }
 
     pub fn random(n_coefficients: usize, rng: &mut (impl RngCore + CryptoRng)) -> Self {
@@ -47,26 +46,25 @@ impl ScalarPoly {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct PointPoly(Vec<Point<Normal, Public, NonZero>>);
+pub struct PointPoly(Vec<Point>);
 
 impl PointPoly {
-    pub fn eval(&self, x: u32) -> Point<Jacobian, Public, Zero> {
-        let x = Scalar::from(x)
-            .expect_nonzero("must be non-zero")
-            .mark::<Public>();
-        let xpows = iter::successors(Some(s!(1).mark::<Public>()), |xpow| {
-            Some(s!(x * xpow).mark::<Public>())
+    pub fn eval(&self, x: u32) -> Point {
+        let x = Scalar::from(x);
+        let xpows = iter::successors(Some(Scalar::from(1u32)), |xpow| {
+            Some(x * xpow)
         })
         .take(self.0.len())
         .collect::<Vec<_>>();
-        op::lincomb(&xpows, &self.0)
+
+        Point::vartime_multiscalar_mul(xpows, &self.0)
     }
 
     pub fn poly_len(&self) -> usize {
         self.0.len()
     }
 
-    pub fn points(&self) -> &[Point<Normal, Public, NonZero>] {
+    pub fn points(&self) -> &[Point] {
         &self.0
     }
 
@@ -74,7 +72,7 @@ impl PointPoly {
         self.0.remove(0);
     }
 
-    pub fn push_front(&mut self, point: Point<Normal, Public, NonZero>) {
+    pub fn push_front(&mut self, point: Point) {
         self.0.insert(0, point)
     }
 }
