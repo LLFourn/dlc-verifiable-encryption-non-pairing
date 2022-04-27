@@ -95,7 +95,7 @@ fn main() -> anyhow::Result<()> {
         total_transmit_non_interactive
     );
 
-    let outcome_index = rand::thread_rng().gen_range(0, args.n_outcomes);
+    let outcome_index = rand::thread_rng().gen_range(0..args.n_outcomes);
 
     let attestations = oracles
         .iter()
