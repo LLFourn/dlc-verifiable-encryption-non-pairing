@@ -2,9 +2,8 @@
 
 important points:
 
-1. The parameters I took are from https://eprint.iacr.org/2014/667.pdf Appendix A table 2 (number of outcomes 1024, bucket_size: 6, proportion of balls not to break: 0.85).
-2. I implemented the cut-and-choose interactively (not via Fiat-Shamir) but this could easily be changed.
-3. I don't actually use adaptor signature per se. Rather we are just one-time padding scalars which are passed in. In reality these could indeed be Schnorr signatures on a particular message and R values.
+1. I implemented the cut-and-choose interactively (not via Fiat-Shamir) but this could easily be changed.
+2. I don't actually use adaptor signature per se. Rather we are just one-time padding scalars which are passed in. In reality these could indeed be Schnorr signatures on a particular message and R values.
 
 ## Run it
 
