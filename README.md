@@ -34,13 +34,13 @@ output:
 
 ```
 Params s: 20 n_oracles: 1 threshold: 1 n_encryptions: 3191 bucket_size: 3 proportion_closed: 0.963
-Total elapsed: 2.614121288s sans-preprocessing: 1.953474144s transmitted: 828210 non-interactive: 819151
+Total elapsed: 1.274426324s sans-preprocessing: 935.448041ms transmitted: 913871 non-interactive: 904816
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 4377 bucket_size: 4 proportion_closed: 0.936
-Total elapsed: 3.486989395s sans-preprocessing: 2.594099431s transmitted: 1124404 non-interactive: 1111799
+Total elapsed: 1.722022463s sans-preprocessing: 1.25441172s transmitted: 1238261 non-interactive: 1225650
 Params s: 40 n_oracles: 1 threshold: 1 n_encryptions: 5627 bucket_size: 5 proportion_closed: 0.91
-Total elapsed: 4.440226468s sans-preprocessing: 3.283423892s transmitted: 1431214 non-interactive: 1414877
+Total elapsed: 2.172743771s sans-preprocessing: 1.574999694s transmitted: 1573063 non-interactive: 1556722
 Params s: 128 n_oracles: 1 threshold: 1 n_encryptions: 17575 bucket_size: 15 proportion_closed: 0.874
-Total elapsed: 13.640727812s sans-preprocessing: 10.007579733s transmitted: 4407832 non-interactive: 4355681
+Total elapsed: 6.559367074s sans-preprocessing: 4.678337613s transmitted: 4831289 non-interactive: 4779122
 ```
 
 
@@ -56,31 +56,32 @@ output:
 
 ```
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 64 bucket_size: 16 proportion_closed: 0.5
-Total elapsed: 42.442111ms sans-preprocessing: 28.866091ms transmitted: 13608 non-interactive: 13542
+Total elapsed: 19.942078ms sans-preprocessing: 13.010771ms transmitted: 14410 non-interactive: 14344
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 82 bucket_size: 11 proportion_closed: 0.537
-Total elapsed: 54.658174ms sans-preprocessing: 37.598525ms transmitted: 17726 non-interactive: 17642
+Total elapsed: 26.107656ms sans-preprocessing: 17.301135ms transmitted: 18846 non-interactive: 18762
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 116 bucket_size: 9 proportion_closed: 0.621
-Total elapsed: 80.675287ms sans-preprocessing: 56.398627ms transmitted: 26022 non-interactive: 25904
+Total elapsed: 38.470937ms sans-preprocessing: 26.151376ms transmitted: 27908 non-interactive: 27790
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 177 bucket_size: 8 proportion_closed: 0.724
-Total elapsed: 129.742641ms sans-preprocessing: 92.835966ms transmitted: 41466 non-interactive: 41287
+Total elapsed: 62.508245ms sans-preprocessing: 43.660216ms transmitted: 44907 non-interactive: 44728
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 283 bucket_size: 6 proportion_closed: 0.679
-Total elapsed: 200.95488ms sans-preprocessing: 142.228293ms transmitted: 65096 non-interactive: 64791
+Total elapsed: 99.041041ms sans-preprocessing: 68.555512ms transmitted: 70205 non-interactive: 69898
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 465 bucket_size: 6 proportion_closed: 0.826
-Total elapsed: 354.305027ms sans-preprocessing: 258.262075ms transmitted: 113928 non-interactive: 113115
+Total elapsed: 171.397127ms sans-preprocessing: 121.774709ms transmitted: 124441 non-interactive: 123630
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 775 bucket_size: 5 proportion_closed: 0.826
-Total elapsed: 592.803745ms sans-preprocessing: 432.095645ms transmitted: 190278 non-interactive: 188541
+Total elapsed: 294.946899ms sans-preprocessing: 204.959963ms transmitted: 207797 non-interactive: 206062
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 1351 bucket_size: 4 proportion_closed: 0.758
-Total elapsed: 1.004648465s sans-preprocessing: 721.752632ms transmitted: 323256 non-interactive: 319809
+Total elapsed: 481.866748ms sans-preprocessing: 336.571969ms transmitted: 350925 non-interactive: 347506
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 2344 bucket_size: 4 proportion_closed: 0.874
-Total elapsed: 1.827260875s sans-preprocessing: 1.342952004s transmitted: 587730 non-interactive: 581252
+Total elapsed: 890.359214ms sans-preprocessing: 638.766767ms transmitted: 644186 non-interactive: 637714
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 4377 bucket_size: 4 proportion_closed: 0.936
-Total elapsed: 3.541953959s sans-preprocessing: 2.639763267s transmitted: 1124404 non-interactive: 1111799
+Total elapsed: 1.743307342s sans-preprocessing: 1.270044292s transmitted: 1238241 non-interactive: 1225650
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 7475 bucket_size: 3 proportion_closed: 0.822
-Total elapsed: 5.746483019s sans-preprocessing: 4.200566408s transmitted: 1838284 non-interactive: 1816453
+Total elapsed: 2.756100704s sans-preprocessing: 1.959705885s transmitted: 2006345 non-interactive: 1984498
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 13519 bucket_size: 3 proportion_closed: 0.909
-Total elapsed: 10.776052907s sans-preprocessing: 7.980564905s transmitted: 3439672 non-interactive: 3399641
+Total elapsed: 5.250113538s sans-preprocessing: 3.811438293s transmitted: 3780037 non-interactive: 3740018
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 28755 bucket_size: 3 proportion_closed: 0.959
-Total elapsed: 23.532350455s sans-preprocessing: 17.575336333s transmitted: 7456888 non-interactive: 7371141
+Total elapsed: 11.540996428s sans-preprocessing: 8.46935377s transmitted: 8225497 non-interactive: 8139738
+
 ```
 
 
@@ -96,17 +97,17 @@ output:
 
 ```
 Params s: 30 n_oracles: 1 threshold: 1 n_encryptions: 1351 bucket_size: 4 proportion_closed: 0.758
-Total elapsed: 991.841275ms sans-preprocessing: 716.017304ms transmitted: 323256 non-interactive: 319809
+Total elapsed: 477.94411ms sans-preprocessing: 334.428543ms transmitted: 350945 non-interactive: 347506
 Params s: 30 n_oracles: 2 threshold: 2 n_encryptions: 2407 bucket_size: 4 proportion_closed: 0.851
-Total elapsed: 1.876650788s sans-preprocessing: 1.383366915s transmitted: 606370 non-interactive: 599713
+Total elapsed: 903.379194ms sans-preprocessing: 645.682642ms transmitted: 662383 non-interactive: 655730
 Params s: 30 n_oracles: 4 threshold: 3 n_encryptions: 4502 bucket_size: 4 proportion_closed: 0.91
-Total elapsed: 3.653410396s sans-preprocessing: 2.725746388s transmitted: 1161266 non-interactive: 1148302
+Total elapsed: 1.772694581s sans-preprocessing: 1.290346259s transmitted: 1274224 non-interactive: 1261266
 Params s: 30 n_oracles: 8 threshold: 5 n_encryptions: 8660 bucket_size: 4 proportion_closed: 0.946
-Total elapsed: 7.247581237s sans-preprocessing: 5.475564776s transmitted: 2265716 non-interactive: 2240264
+Total elapsed: 3.50377894s sans-preprocessing: 2.572126717s transmitted: 2492662 non-interactive: 2467218
 Params s: 30 n_oracles: 16 threshold: 9 n_encryptions: 15795 bucket_size: 3 proportion_closed: 0.778
-Total elapsed: 12.938041387s sans-preprocessing: 9.704632021s transmitted: 3881160 non-interactive: 3834373
+Total elapsed: 5.825807163s sans-preprocessing: 4.140301434s transmitted: 4212663 non-interactive: 4165874
 Params s: 30 n_oracles: 32 threshold: 17 n_encryptions: 28677 bucket_size: 3 proportion_closed: 0.857
-Total elapsed: 26.548534928s sans-preprocessing: 20.67049082s transmitted: 7279116 non-interactive: 7193659
+Total elapsed: 11.349690911s sans-preprocessing: 8.280530103s transmitted: 7950859 non-interactive: 7865394
 Params s: 30 n_oracles: 64 threshold: 33 n_encryptions: 54073 bucket_size: 3 proportion_closed: 0.909
-Total elapsed: 59.740762625s sans-preprocessing: 48.608402915s transmitted: 14013926 non-interactive: 13852247
+Total elapsed: 23.487008157s sans-preprocessing: 17.71730371s transmitted: 15367223 non-interactive: 15205556
 ```
