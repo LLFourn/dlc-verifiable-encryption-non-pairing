@@ -1,13 +1,13 @@
 use clap::Parser;
+use curve25519_dalek::{ristretto::RistrettoPoint as Point, scalar::Scalar};
 use dlc_venc_adaptor::{
-    G,
     alice::*,
     bob::*,
     common::{compute_optimal_params, Params},
     oracle::Oracle,
+    G,
 };
 use rand::Rng;
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
 use serde::Serialize;
 use std::time::Instant;
 

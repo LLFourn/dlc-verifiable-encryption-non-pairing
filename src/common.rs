@@ -1,4 +1,4 @@
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
+use curve25519_dalek::{ristretto::RistrettoPoint as Point, scalar::Scalar};
 use sha2::{digest::Digest, Sha256};
 
 #[derive(Clone, Debug)]
@@ -24,10 +24,7 @@ impl Params {
         self.M() - self.NB()
     }
 
-    pub fn iter_anticipations(
-        &self,
-        oracle_index: usize,
-    ) -> impl Iterator<Item = Point> {
+    pub fn iter_anticipations(&self, oracle_index: usize) -> impl Iterator<Item = Point> {
         let mut acc = self.oracle_keys[oracle_index].0;
         let nonce = self.oracle_keys[oracle_index].1;
         (0..self.n_outcomes).map(move |_| {
@@ -36,11 +33,7 @@ impl Params {
         })
     }
 
-    pub fn anticipate_at_index(
-        &self,
-        oracle_index: usize,
-        index: u32,
-    ) -> Point {
+    pub fn anticipate_at_index(&self, oracle_index: usize, index: u32) -> Point {
         let index = Scalar::from(index);
         let (oracle_key, oracle_nonce) = self.oracle_keys[oracle_index];
         oracle_key + (index + Scalar::one()) * oracle_nonce
@@ -49,7 +42,9 @@ impl Params {
 
 pub fn map_Zq_to_G(ri: &Scalar) -> (Point, [u8; 32]) {
     let point = Point::random(&mut rand::thread_rng());
-    let mut hashed_xor_ri = Sha256::default().chain(point.compress().to_bytes()).finalize();
+    let mut hashed_xor_ri = Sha256::default()
+        .chain(point.compress().to_bytes())
+        .finalize();
     for (xor_byte, ri_byte) in hashed_xor_ri.iter_mut().zip(ri.to_bytes()) {
         *xor_byte ^= ri_byte
     }
@@ -57,7 +52,9 @@ pub fn map_Zq_to_G(ri: &Scalar) -> (Point, [u8; 32]) {
 }
 
 pub fn map_G_to_Zq(point: Point, pad: [u8; 32]) -> Scalar {
-    let mut ri_bytes = Sha256::default().chain(point.compress().to_bytes()).finalize();
+    let mut ri_bytes = Sha256::default()
+        .chain(point.compress().to_bytes())
+        .finalize();
     for (xor_byte, pad_byte) in ri_bytes.iter_mut().zip(pad) {
         *xor_byte ^= pad_byte
     }

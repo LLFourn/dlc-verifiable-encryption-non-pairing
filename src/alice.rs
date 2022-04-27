@@ -1,8 +1,8 @@
 use crate::common::Params;
 use crate::messages::*;
-use anyhow::anyhow;
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
 use crate::G;
+use anyhow::anyhow;
+use curve25519_dalek::{ristretto::RistrettoPoint as Point, scalar::Scalar};
 use zkp::{toolbox::prover::Prover, Transcript};
 
 pub struct Alice1 {
@@ -22,10 +22,7 @@ impl Alice1 {
 
                 let Ri = &ri * &*G;
                 let ri_prime = Scalar::random(&mut rand::thread_rng());
-                let C_i = (
-                    &ri_prime * &*G,
-                   ri_prime * params.elgamal_base + ri_mapped
-                );
+                let C_i = (&ri_prime * &*G, ri_prime * params.elgamal_base + ri_mapped);
 
                 (
                     Commit {

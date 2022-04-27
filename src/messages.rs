@@ -1,5 +1,5 @@
 use crate::poly::PointPoly;
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
+use curve25519_dalek::{ristretto::RistrettoPoint as Point, scalar::Scalar};
 use serde::Serialize;
 use std::collections::BTreeSet;
 

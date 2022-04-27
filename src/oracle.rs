@@ -1,6 +1,6 @@
-use rand::{CryptoRng, RngCore};
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
 use crate::G;
+use curve25519_dalek::{ristretto::RistrettoPoint as Point, scalar::Scalar};
+use rand::{CryptoRng, RngCore};
 
 #[allow(dead_code)]
 pub struct Oracle {

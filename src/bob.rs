@@ -1,8 +1,8 @@
 use crate::{common::Params, messages::*, G};
 use anyhow::anyhow;
+use curve25519_dalek::{ristretto::RistrettoPoint as Point, scalar::Scalar};
 use rand::{prelude::SliceRandom, RngCore};
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point};
-use zkp::{toolbox::{verifier::Verifier}, Transcript};
+use zkp::{toolbox::verifier::Verifier, Transcript};
 
 pub struct Bob1 {
     commits: Vec<Commit>,
@@ -90,7 +90,6 @@ impl Bob1 {
             .collect::<Vec<_>>();
         let mut outcome_buckets = vec![];
 
-
         let mut transcript = Transcript::new(b"dlc-dleqs");
         let mut verifier = Verifier::new(b"dlc-dleqs", &mut transcript);
 
@@ -129,10 +128,9 @@ impl Bob1 {
 
         if verifier.verify_batchable(&message.proof).is_err() {
             return Err(anyhow!(
-                            "proof of equality between ciphertext and commitment was invalid"
-                        ));
+                "proof of equality between ciphertext and commitment was invalid"
+            ));
         }
-
 
         Ok(Bob2 { outcome_buckets })
     }
@@ -177,10 +175,7 @@ impl Bob2 {
                 let sig_share = padded_sig_share - ri;
                 let got_sig_share_image = &sig_share * &*G;
                 if got_sig_share_image == sig_share_image {
-                    sig_shares.push((
-                        Scalar::from(oracle_index as u32 + 1),
-                        sig_share,
-                    ));
+                    sig_shares.push((Scalar::from(oracle_index as u32 + 1), sig_share));
                     break;
                 } else {
                     eprintln!(
@@ -188,7 +183,6 @@ impl Bob2 {
                         sig_share_image, got_sig_share_image
                     );
                 }
-
             }
         }
 
@@ -201,12 +195,10 @@ impl Bob2 {
                     .map(|(x_m, _)| x_m)
                     .filter(|x_m| x_m != &x_j)
                     .collect::<Vec<_>>();
-                let (num, denom) = x_ms.iter().fold((Scalar::from(1u32), Scalar::from(1u32)), |(acc_n, acc_d), x_m| {
-                    (
-                        acc_n * *x_m,
-                        acc_d * (*x_m - x_j),
-                    )
-                });
+                let (num, denom) = x_ms.iter().fold(
+                    (Scalar::from(1u32), Scalar::from(1u32)),
+                    |(acc_n, acc_d), x_m| (acc_n * *x_m, acc_d * (*x_m - x_j)),
+                );
                 let lagrange_coeff = num * { denom.invert() };
                 acc + lagrange_coeff * y_j
             });

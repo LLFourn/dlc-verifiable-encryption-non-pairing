@@ -1,8 +1,10 @@
+use crate::G;
+use curve25519_dalek::{
+    ristretto::RistrettoPoint as Point, scalar::Scalar, traits::VartimeMultiscalarMul,
+};
 use rand::{CryptoRng, RngCore};
-use curve25519_dalek::{scalar::Scalar, ristretto::RistrettoPoint as Point, traits::VartimeMultiscalarMul};
 use serde::Serialize;
 use std::iter;
-use crate::G;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScalarPoly(Vec<Scalar>);
@@ -11,13 +13,10 @@ impl ScalarPoly {
     pub fn eval(&self, x: u32) -> Scalar {
         let x = Scalar::from(x);
         let mut xpow = Scalar::from(1u32);
-        self.0
-            .iter()
-            .skip(1)
-            .fold(self.0[0], move |sum, coeff| {
-                xpow = xpow * x;
-                sum + xpow * coeff
-            })
+        self.0.iter().skip(1).fold(self.0[0], move |sum, coeff| {
+            xpow = xpow * x;
+            sum + xpow * coeff
+        })
     }
 
     pub fn to_point_poly(&self) -> PointPoly {
@@ -51,11 +50,9 @@ pub struct PointPoly(Vec<Point>);
 impl PointPoly {
     pub fn eval(&self, x: u32) -> Point {
         let x = Scalar::from(x);
-        let xpows = iter::successors(Some(Scalar::from(1u32)), |xpow| {
-            Some(x * xpow)
-        })
-        .take(self.0.len())
-        .collect::<Vec<_>>();
+        let xpows = iter::successors(Some(Scalar::from(1u32)), |xpow| Some(x * xpow))
+            .take(self.0.len())
+            .collect::<Vec<_>>();
 
         Point::vartime_multiscalar_mul(xpows, &self.0)
     }
