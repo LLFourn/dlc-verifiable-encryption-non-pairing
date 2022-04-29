@@ -3,13 +3,13 @@ use crate::messages::*;
 use anyhow::anyhow;
 use secp256kfun::{g, s, Point, Scalar, G};
 pub struct Alice1 {
-    secrets: Vec<(Scalar, Scalar, Point)>,
+    commit_secrets: Vec<(Scalar, Scalar, Point)>,
     commits: Vec<Commit>,
 }
 
 impl Alice1 {
     pub fn new(params: &Params) -> (Alice1, Message1) {
-        let (commits, secrets) = (0..params.M())
+        let (commits, commit_secrets) = (0..params.M())
             .map(|_| {
                 let (padi, ri, ri_mapped) = {
                     let ri = Scalar::random(&mut rand::thread_rng());
@@ -43,7 +43,7 @@ impl Alice1 {
 
         (
             Alice1 {
-                secrets,
+                commit_secrets,
                 commits: commits.clone(),
             },
             message,
@@ -53,9 +53,10 @@ impl Alice1 {
     pub fn receive_message(
         self,
         message: Message2,
-        secret_sigs: Vec<Scalar>,
+        secrets: Vec<Scalar>,
         params: &Params,
     ) -> anyhow::Result<Message3> {
+
         let NB = params.NB();
         if let Some(bad_index) = message.bucket_mapping.iter().find(|map| **map >= NB) {
             return Err(anyhow!(
@@ -74,7 +75,7 @@ impl Alice1 {
         }
 
         let Alice1 {
-            mut secrets,
+            mut commit_secrets,
             mut commits,
         } = self;
 
@@ -87,7 +88,7 @@ impl Alice1 {
 
         let mut i = 0;
         let mut openings = vec![];
-        secrets.retain(|secret| {
+        commit_secrets.retain(|secret| {
             let open_it = message.openings.contains(&i);
             i += 1;
             if open_it {
@@ -99,7 +100,7 @@ impl Alice1 {
         let mut buckets = Vec::with_capacity(params.NB());
 
         for from in message.bucket_mapping.into_iter() {
-            buckets.push((commits[from], &secrets[from]));
+            buckets.push((commits[from], &commit_secrets[from]));
         }
 
         let proof_system = crate::dleq::ProofSystem::default();
@@ -110,12 +111,12 @@ impl Alice1 {
 
         let scalar_polys = (0..params.n_outcomes)
             .map(|outcome_index| {
-                let secret_sig = secret_sigs[outcome_index as usize].clone();
+                let secret = secrets[outcome_index as usize].clone();
                 let mut poly = crate::poly::ScalarPoly::random(
                     (params.threshold - 1) as usize,
                     &mut rand::thread_rng(),
                 );
-                poly.push_front(secret_sig);
+                poly.push_front(secret);
                 poly
             })
             .collect::<Vec<_>>();
@@ -130,14 +131,13 @@ impl Alice1 {
             for (oracle_index, bucket) in buckets.chunks(params.bucket_size as usize).enumerate() {
                 let anticipated_attestation =
                     anticipated_attestations[oracle_index].next().unwrap();
-                let secret_sig_share = scalar_poly.eval((oracle_index + 1) as u32);
+                let secret_share = scalar_poly.eval((oracle_index + 1) as u32);
                 for (commit, (ri, ri_prime, ri_mapped)) in bucket {
-                    // compute the ElGamal encryption to the signature of ri_mapped
+                    // compute the ElGamal encryption of ri_mapped
                     let ri_encryption = g!(ri_prime * anticipated_attestation + ri_mapped)
                         .expect_nonzero("computationally unreachable")
                         .normalize();
                     // create proof ElGamal encryption value is same as commitment
-
                     let proof = crate::dleq::prove_eqaulity(
                         &proof_system,
                         ri_prime.clone(),
@@ -147,9 +147,8 @@ impl Alice1 {
                         commit.C,
                     );
 
-                    // assert!(crate::dleq::verify_eqaulity(&proof_system, &proof, ri_encryption, sig_point, params.elgamal_base, commit.C));
-                    // one-time pad of the signature in Z_q
-                    let padded_secret = s!(ri + secret_sig_share);
+                    // one-time pad of the secret_share in Z_q
+                    let padded_secret = s!(ri + secret_share);
                     encryptions.push((proof, ri_encryption, padded_secret));
                 }
             }

@@ -50,12 +50,13 @@ fn main() -> anyhow::Result<()> {
         threshold: args.threshold,
     };
 
-    let secret_sigs = (0..params.n_outcomes)
+    let secrets = (0..params.n_outcomes)
         .map(|_| Scalar::random(&mut rand::thread_rng()))
         .collect::<Vec<_>>();
-    let anticipated_sigs = secret_sigs.iter().map(|s| g!(s * G).normalize()).collect();
+    let secret_images = secrets.iter().map(|s| g!(s * G).normalize()).collect();
 
-    println!("Params s: {} n_oracles: {} threshold: {} n_encryptions: {} bucket_size: {} proportion_closed: {}", args.s, args.n_oracles, args.threshold, params.M(), params.bucket_size, params.closed_proportion);
+    println!("Params s: {} n_oracles: {} n_outcomes: {} threshold: {} n_encryptions: {} bucket_size: {} proportion_closed: {}",
+             args.s, args.n_oracles, args.n_outcomes, args.threshold, params.M(), params.bucket_size, params.closed_proportion);
     let start_round1 = Instant::now();
     let (alice, m1) = Alice1::new(&params);
     let m1_encode_len = encode_len(&m1);
@@ -73,7 +74,7 @@ fn main() -> anyhow::Result<()> {
         m2_encode_len
     );
     let start_round3 = Instant::now();
-    let m3 = alice.receive_message(m2, secret_sigs, &params)?;
+    let m3 = alice.receive_message(m2, secrets, &params)?;
     let m3_encode_len = encode_len(&m3);
     println!(
         "End round 3 elapsed: {:?} transmitted: {}",
@@ -81,7 +82,7 @@ fn main() -> anyhow::Result<()> {
         m3_encode_len
     );
     let start_round4 = Instant::now();
-    let bob = bob.receive_message(m3, anticipated_sigs, &params)?;
+    let bob = bob.receive_message(m3, secret_images, &params)?;
     println!("End round 4 elapsed: {:?}", start_round4.elapsed());
 
     let total_transmit_interactive = m1_encode_len + m2_encode_len + m3_encode_len;
@@ -104,7 +105,7 @@ fn main() -> anyhow::Result<()> {
     println!("got attestation");
     let scalar = bob.receive_oracle_attestation(outcome_index, attestations, &params)?;
 
-    println!("got the secret sig {}", scalar);
+    println!("got the secret {}", scalar);
 
     Ok(())
 }

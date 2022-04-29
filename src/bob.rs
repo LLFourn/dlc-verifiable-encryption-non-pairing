@@ -97,10 +97,10 @@ impl Bob1 {
             .chunks(params.bucket_size as usize * n_oracles)
             .enumerate()
         {
-            let sig_image = sig_images[outcome_index];
+            let secret_image = sig_images[outcome_index];
             let mut oracle_buckets = vec![];
             let poly = &mut message.polys[outcome_index];
-            poly.push_front(sig_image);
+            poly.push_front(secret_image);
             for (oracle_index, bucket) in buckets.chunks(params.bucket_size as usize).enumerate() {
                 let anticipated_attestation =
                     anticipated_attestations[oracle_index].next().unwrap();
@@ -128,7 +128,7 @@ impl Bob1 {
                 }
                 oracle_buckets.push((oracle_bucket, sig_share_image))
             }
-            outcome_buckets.push((oracle_buckets, sig_image));
+            outcome_buckets.push((oracle_buckets, secret_image));
         }
 
         Ok(Bob2 { outcome_buckets })
@@ -158,9 +158,9 @@ impl Bob2 {
         attestations: Vec<Scalar<Public, Zero>>,
         params: &Params,
     ) -> anyhow::Result<Scalar<Public, Zero>> {
-        let (outcome_bucket, sig_image) = self.outcome_buckets.remove(outcome_index as usize);
-        let mut sig_shares = vec![];
-        for (oracle_index, ((oracle_bucket, sig_share_image), attestation)) in
+        let (outcome_bucket, secret_image) = self.outcome_buckets.remove(outcome_index as usize);
+        let mut secret_shares = vec![];
+        for (oracle_index, ((oracle_bucket, secret_share_image), attestation)) in
             outcome_bucket.into_iter().zip(attestations).enumerate()
         {
             if g!(attestation * G) != params.anticipate_at_index(oracle_index, outcome_index) {
@@ -168,34 +168,34 @@ impl Bob2 {
                 continue;
             }
 
-            for (encryption, padded_sig_share, pad) in oracle_bucket {
+            for (encryption, padded_secret_share, pad) in oracle_bucket {
                 if let Some(ri_mapped) = g!({ encryption.1 } - attestation * { encryption.0 })
                     .normalize()
                     .mark::<NonZero>()
                 {
                     let ri = crate::common::map_G_to_Zq(ri_mapped, pad);
-                    let sig_share = s!(padded_sig_share - ri).mark::<Public>();
-                    let got_sig_share_image = g!(sig_share * G);
-                    if got_sig_share_image == sig_share_image {
-                        sig_shares.push((
+                    let secret_share = s!(padded_secret_share - ri).mark::<Public>();
+                    let got_secret_share_image = g!(secret_share * G);
+                    if got_secret_share_image == secret_share_image {
+                        secret_shares.push((
                             Scalar::from(oracle_index as u32 + 1).expect_nonzero("added 1"),
-                            sig_share,
+                            secret_share,
                         ));
                         break;
                     } else {
                         eprintln!(
                             "Found a malicious encryption. Expecting {:?} got {:?}",
-                            sig_share_image, got_sig_share_image
+                            secret_share_image, got_secret_share_image
                         );
                     }
                 }
             }
         }
 
-        if sig_shares.len() >= params.threshold as usize {
-            let shares = &sig_shares[0..params.threshold as usize];
+        if secret_shares.len() >= params.threshold as usize {
+            let shares = &secret_shares[0..params.threshold as usize];
 
-            let secret_sig = shares.iter().fold(s!(0), |acc, (x_j, y_j)| {
+            let secret = shares.iter().fold(s!(0), |acc, (x_j, y_j)| {
                 let x_ms = shares
                     .iter()
                     .map(|(x_m, _)| x_m)
@@ -211,11 +211,11 @@ impl Bob2 {
                 s!(acc + lagrange_coeff * y_j)
             });
 
-            if g!(secret_sig * G) != sig_image {
+            if g!(secret * G) != secret_image {
                 return Err(anyhow!("the sig we recovered"));
             }
 
-            Ok(secret_sig.mark::<Public>())
+            Ok(secret.mark::<Public>())
         } else {
             Err(anyhow!("not enough shares to reconstruct secret!"))
         }
