@@ -7,6 +7,7 @@ In the protocol "Alice" verifiably encrypts a list of secret scalar's to their c
 important points:
 
 1. I implemented the cut-and-choose interactively (not via Fiat-Shamir) but this could easily be changed.
+2. There is a much faster implementation in the ristretto branch on this repo.
 
 ## Run it
 
