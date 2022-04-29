@@ -1,9 +1,14 @@
-# Sketch of DLCs using cut-and-choose verifiable encryption (prime-order group edition)
+# Sketch of DLCs using cut-and-choose verifiable encryption
+
+**This implementation uses Ristretto and [zkp](https://docs.rs/zkp/0.8.0/zkp/)**
+
+DLCs via verifiable encryption with `r*i + x` as the oracle's attestation scheme where `r` is a per event nonce, `i` is the index of the outcome from 1..n and `x` the oracle's static secret key.
+
+In the protocol "Alice" verifiably encrypts a list of secret scalar's to their corresponding anticipated oracle attestation points such that when the oracle attests to an outcome "Bob" can decrypt it.
 
 important points:
 
 1. I implemented the cut-and-choose interactively (not via Fiat-Shamir) but this could easily be changed.
-2. I don't actually use adaptor signature per se. Rather we are just one-time padding scalars which are passed in. In reality these could indeed be Schnorr signatures on a particular message and R values.
 
 ## Run it
 
