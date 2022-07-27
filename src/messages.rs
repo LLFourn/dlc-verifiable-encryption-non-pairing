@@ -27,4 +27,7 @@ pub struct Message3 {
     pub encryptions: Vec<(Point, Scalar)>,
     pub polys: Vec<PointPoly>,
     pub openings: Vec<Scalar>,
+    pub bit_map_images: Vec<Vec<[Point; 2]>>,
+    // there is one of these per outcome ( per oracle )
+    pub secret_share_pads_by_oracle: Vec<Vec<Scalar>>,
 }

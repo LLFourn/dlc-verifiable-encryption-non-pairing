@@ -42,8 +42,8 @@ impl Bob1 {
 
     pub fn receive_message(
         self,
-        mut message: Message3,
-        sig_images: Vec<Point>,
+        message: Message3,
+        outcome_images: Vec<Point>,
         params: &Params,
     ) -> anyhow::Result<Bob2> {
         let Bob1 {
@@ -85,45 +85,52 @@ impl Bob1 {
         }
 
         let n_oracles = params.oracle_keys.len();
-        let mut anticipated_attestations = (0..n_oracles)
-            .map(|oracle_index| params.iter_anticipations(oracle_index))
+        let anticipated_attestations = (0..n_oracles)
+            .map(|oracle_index| params.iter_anticipations(oracle_index).collect::<Vec<_>>())
             .collect::<Vec<_>>();
-        let mut outcome_buckets = vec![];
+        let mut bit_map_encryptions = vec![];
 
         let mut transcript = Transcript::new(b"dlc-dleqs");
         let mut verifier = Verifier::new(b"dlc-dleqs", &mut transcript);
 
-        for (outcome_index, buckets) in buckets
-            .chunks(params.bucket_size as usize * n_oracles)
+        for (oracle_index, bits_window) in buckets
+            .chunks((params.n_outcome_bits() * 2 * params.bucket_size as u32) as usize)
             .enumerate()
         {
-            let sig_image = sig_images[outcome_index];
-            let mut oracle_buckets = vec![];
-            let poly = &mut message.polys[outcome_index];
-            poly.push_front(sig_image);
-            for (oracle_index, bucket) in buckets.chunks(params.bucket_size as usize).enumerate() {
-                let anticipated_attestation =
-                    anticipated_attestations[oracle_index].next().unwrap();
-                let mut oracle_bucket = vec![];
-                let sig_share_image = poly.eval((oracle_index + 1) as u32);
-                for (commit, (encryption, padded_sig)) in bucket {
-                    crate::dleq::verify_eqaulity(
-                        &mut verifier,
-                        *encryption,
-                        anticipated_attestation,
-                        params.elgamal_base,
-                        commit.C,
-                    );
+            let mut bits: Vec<[_; 2]> = vec![];
+            for (bit_index, bit_window) in bits_window
+                .chunks((2 * params.bucket_size) as usize)
+                .enumerate()
+            {
+                let mut bit_values = vec![];
+                for (bit_value_index, bit_value_window) in
+                    bit_window.chunks((params.bucket_size) as usize).enumerate()
+                {
+                    let T = message.bit_map_images[oracle_index][bit_index][bit_value_index];
+                    let anticipated_attestation =
+                        anticipated_attestations[oracle_index][bit_index][bit_value_index];
 
-                    if sig_share_image + commit.R != padded_sig * &*G {
-                        return Err(anyhow!("padded sig wasn't valid"));
+                    let mut bit_value_bucket = vec![];
+                    for (commit, (encryption, padded_T)) in bit_value_window {
+                        crate::dleq::verify_eqaulity(
+                            &mut verifier,
+                            *encryption,
+                            anticipated_attestation,
+                            params.elgamal_base,
+                            commit.C,
+                        );
+
+                        if T + commit.R != padded_T * &*G {
+                            return Err(anyhow!("padded bit_map wasn't valid"));
+                        }
+
+                        bit_value_bucket.push(((commit.C.0, *encryption), *padded_T, commit.pad));
                     }
-
-                    oracle_bucket.push(((commit.C.0, *encryption), padded_sig.clone(), commit.pad));
+                    bit_values.push((bit_value_bucket, T))
                 }
-                oracle_buckets.push((oracle_bucket, sig_share_image))
+                bits.push(bit_values.try_into().unwrap());
             }
-            outcome_buckets.push((oracle_buckets, sig_image));
+            bit_map_encryptions.push(bits);
         }
 
         if verifier.verify_batchable(&message.proof).is_err() {
@@ -132,64 +139,100 @@ impl Bob1 {
             ));
         }
 
-        Ok(Bob2 { outcome_buckets })
+        Ok(Bob2 {
+            bit_map_encryptions,
+            secret_share_pads_by_oracle: message.secret_share_pads_by_oracle,
+            outcome_images,
+        })
     }
 }
 
 pub struct Bob2 {
-    outcome_buckets: Vec<(
-        // for every outcome:
-        // 1. A list of entries corresponding to oracles
-        Vec<(
-            // For every oracle:
-            // 1. A list of encryptions (all encrypting the same signature share)
-            Vec<((Point, Point), Scalar, [u8; 32])>,
-            // 2. The image of the signature share that will be encrypted
-            Point,
-        )>,
-        // 2. The sig image that should be unlocked iwth this outcome
-        Point,
-    )>,
+    // For every oracle
+    bit_map_encryptions: Vec<
+        // For every outcome bit
+        Vec<
+            // two bit values
+            [(
+                // a bucket of encryptions
+                Vec<((Point, Point), Scalar, [u8; 32])>,
+                // The image of the bit map that is encrypted
+                Point,
+            ); 2],
+        >,
+    >,
+    // The image of the secret that should be revealed for each outcome
+    secret_share_pads_by_oracle: Vec<Vec<Scalar>>,
+    outcome_images: Vec<Point>,
 }
 
 impl Bob2 {
     pub fn receive_oracle_attestation(
-        mut self,
+        self,
         outcome_index: u32,
-        attestations: Vec<Scalar>,
+        attestations: Vec<Vec<Scalar>>,
         params: &Params,
     ) -> anyhow::Result<Scalar> {
-        let (outcome_bucket, sig_image) = self.outcome_buckets.remove(outcome_index as usize);
-        let mut sig_shares = vec![];
-        for (oracle_index, ((oracle_bucket, sig_share_image), attestation)) in
-            outcome_bucket.into_iter().zip(attestations).enumerate()
-        {
-            if &attestation * &*G != params.anticipate_at_index(oracle_index, outcome_index) {
-                eprintln!("attestation didn't match anticipated attestation");
-                continue;
-            }
+        let outcome_bits = crate::common::to_bits(outcome_index, params.n_outcome_bits() as usize);
+        let mut secret_shares = vec![];
+        for (oracle_index, bit_attestations) in attestations.into_iter().enumerate() {
+            assert_eq!(
+                outcome_bits.len(),
+                bit_attestations.len(),
+                "attestation for oracle didn't have the right number of signatures"
+            );
 
-            for (encryption, padded_sig_share, pad) in oracle_bucket {
-                let ri_mapped = encryption.1 - attestation * encryption.0;
-                let ri = crate::common::map_G_to_Zq(ri_mapped, pad);
-                let sig_share = padded_sig_share - ri;
-                let got_sig_share_image = &sig_share * &*G;
-                if got_sig_share_image == sig_share_image {
-                    sig_shares.push((Scalar::from(oracle_index as u32 + 1), sig_share));
-                    break;
-                } else {
-                    eprintln!(
-                        "Found a malicious encryption. Expecting {:?} got {:?}",
-                        sig_share_image, got_sig_share_image
-                    );
-                }
-            }
+            let bit_map_pads = outcome_bits
+                .iter()
+                .zip(bit_attestations)
+                .enumerate()
+                .map(|(bit_index, (bit_value, bit_attestation))| {
+                    if &bit_attestation * &*G
+                        != params.anticipate_at_index(oracle_index, bit_index as u32, *bit_value)
+                    {
+                        eprintln!("attestation didn't match anticipated attestation");
+                        return None;
+                    }
+
+                    let (outcome_bit_bucket, expected_bit_map_image) =
+                        &self.bit_map_encryptions[oracle_index][bit_index][*bit_value as usize];
+                    outcome_bit_bucket.iter().find_map(
+                        |(encryption, padded_bit_map_secret, pad)| {
+                            let ri_mapped = encryption.1 - bit_attestation * encryption.0;
+                            let ri = crate::common::map_G_to_Zq(ri_mapped, *pad);
+                            let bit_map_secret = padded_bit_map_secret - ri;
+                            let got_bit_map_image = &bit_map_secret * &*G;
+                            if &got_bit_map_image == expected_bit_map_image {
+                                Some(bit_map_secret)
+                            } else {
+                                eprintln!(
+                                    "we didn't decrypt what was expected -- ignoring that share"
+                                );
+                                None
+                            }
+                        },
+                    )
+                })
+                .collect::<Option<Vec<_>>>();
+
+            let secret_share_pad = match bit_map_pads {
+                Some(bit_map_pads) => bit_map_pads
+                    .into_iter()
+                    .fold(Scalar::zero(), |acc, pad| acc + pad),
+                None => continue,
+            };
+
+            let secret_share = self.secret_share_pads_by_oracle[oracle_index]
+                [outcome_index as usize]
+                - secret_share_pad;
+
+            secret_shares.push((Scalar::from(oracle_index as u32 + 1), secret_share));
         }
 
-        if sig_shares.len() >= params.threshold as usize {
-            let shares = &sig_shares[0..params.threshold as usize];
+        if secret_shares.len() >= params.threshold as usize {
+            let shares = &secret_shares[0..params.threshold as usize];
 
-            let secret_sig = shares.iter().fold(Scalar::from(0u32), |acc, (x_j, y_j)| {
+            let secret = shares.iter().fold(Scalar::from(0u32), |acc, (x_j, y_j)| {
                 let x_ms = shares
                     .iter()
                     .map(|(x_m, _)| x_m)
@@ -203,11 +246,11 @@ impl Bob2 {
                 acc + lagrange_coeff * y_j
             });
 
-            if &secret_sig * &*G != sig_image {
-                return Err(anyhow!("the sig we recovered"));
+            if &secret * &*G != self.outcome_images[outcome_index as usize] {
+                return Err(anyhow!("the secret we recovered was wrong"));
             }
 
-            Ok(secret_sig)
+            Ok(secret)
         } else {
             Err(anyhow!("not enough shares to reconstruct secret!"))
         }

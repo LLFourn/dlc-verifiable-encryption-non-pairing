@@ -33,7 +33,7 @@ fn main() -> anyhow::Result<()> {
     let elgamal_base = Point::random(&mut rand::thread_rng());
 
     let oracles = (0..args.n_oracles)
-        .map(|_| Oracle::random(&mut rand::thread_rng()))
+        .map(|_| Oracle::random(args.n_outcomes, &mut rand::thread_rng()))
         .collect::<Vec<_>>();
 
     let (closed_proportion, bucket_size) =
@@ -41,7 +41,7 @@ fn main() -> anyhow::Result<()> {
     let params = Params {
         oracle_keys: oracles
             .iter()
-            .map(|oracle| (oracle.public_key(), oracle.public_nonce()))
+            .map(|oracle| (oracle.public_key(), oracle.public_nonce().to_vec()))
             .collect(),
         n_outcomes: args.n_outcomes,
         bucket_size,
