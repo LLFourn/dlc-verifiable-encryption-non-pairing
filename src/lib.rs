@@ -4,7 +4,6 @@ pub mod bob;
 pub mod common;
 pub mod dleq;
 pub mod messages;
-pub mod oracle;
 pub mod poly;
 
 lazy_static::lazy_static! {

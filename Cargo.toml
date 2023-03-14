@@ -2,6 +2,7 @@
 name = "dlc-venc-adaptor"
 version = "0.1.0"
 edition = "2021"
+license = "0BSD"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,7 +12,7 @@ anyhow = "1"
 zkp = {  git = "https://github.com/LLFourn/zkp.git", features = ["simd_backend"] }
 curve25519-dalek = { package = "curve25519-dalek-ng", version = "4", default-features = false, features = ["serde", "std", "simd_backend"] }
 sha2 = "0.9"
-bincode = {  version = "2.0.0-rc.1", features = ["serde"] }
+bincode = {  version = "2.0.0-rc.2", features = ["serde"] }
 serde = { version = "1" }
 clap = {  version = "3", features = ["derive"] }
 lazy_static = "1"

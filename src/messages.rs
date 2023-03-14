@@ -1,4 +1,3 @@
-use crate::poly::PointPoly;
 use curve25519_dalek::{ristretto::RistrettoPoint as Point, scalar::Scalar};
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -25,6 +24,5 @@ pub struct Message2 {
 pub struct Message3 {
     pub proof: crate::dleq::Proof,
     pub encryptions: Vec<(Point, Scalar)>,
-    pub polys: Vec<PointPoly>,
     pub openings: Vec<Scalar>,
 }

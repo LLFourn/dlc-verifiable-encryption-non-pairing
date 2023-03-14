@@ -23,7 +23,6 @@ impl Alice1 {
                 let Ri = &ri * &*G;
                 let ri_prime = Scalar::random(&mut rand::thread_rng());
                 let C_i = (&ri_prime * &*G, ri_prime * params.elgamal_base + ri_mapped);
-
                 (
                     Commit {
                         C: C_i,
@@ -51,7 +50,8 @@ impl Alice1 {
     pub fn receive_message(
         self,
         message: Message2,
-        secret_sigs: Vec<Scalar>,
+        secrets_to_be_encrpted: &[Scalar],
+        public_encryption_keys: &[Point],
         params: &Params,
     ) -> anyhow::Result<Message3> {
         let NB = params.NB();
@@ -100,74 +100,38 @@ impl Alice1 {
             buckets.push((commits[from], &secrets[from]));
         }
 
-        let n_oracles = params.oracle_keys.len();
-        let mut anticipated_attestations = (0..n_oracles)
-            .map(|oracle_index| params.iter_anticipations(oracle_index))
-            .collect::<Vec<_>>();
-
-        let scalar_polys = (0..params.n_outcomes)
-            .map(|outcome_index| {
-                let secret_sig = secret_sigs[outcome_index as usize].clone();
-                let mut poly = crate::poly::ScalarPoly::random(
-                    (params.threshold - 1) as usize,
-                    &mut rand::thread_rng(),
-                );
-                poly.push_front(secret_sig);
-                poly
-            })
-            .collect::<Vec<_>>();
-
         let mut encryptions = vec![];
 
-        let mut transcript = Transcript::new(b"dlc-dleqs");
-        let mut prover = Prover::new(b"dlc-dleqs", &mut transcript);
+        let mut transcript = Transcript::new(b"venc-dleqs");
+        let mut prover = Prover::new(b"venc-dleqs", &mut transcript);
 
-        for (outcome_index, buckets) in buckets
-            .chunks(params.bucket_size as usize * n_oracles)
-            .enumerate()
-        {
-            let scalar_poly = &scalar_polys[outcome_index];
-            for (oracle_index, bucket) in buckets.chunks(params.bucket_size as usize).enumerate() {
-                let anticipated_attestation =
-                    anticipated_attestations[oracle_index].next().unwrap();
-                let secret_sig_share = scalar_poly.eval((oracle_index + 1) as u32);
-                for (commit, (ri, ri_prime, ri_mapped)) in bucket {
-                    // compute the ElGamal encryption to the signature of ri_mapped
-                    let ri_encryption = ri_prime * anticipated_attestation + ri_mapped;
-                    // create proof ElGamal encryption value is same as commitment
+        for (ve_index, bucket) in buckets.chunks(params.bucket_size as usize).enumerate() {
+            let public_encryption_key = public_encryption_keys[ve_index];
+            for (commit, (ri, ri_prime, ri_mapped)) in bucket {
+                // ElGamal encryption of ri_mapped
+                let ri_encryption = ri_prime * public_encryption_key + ri_mapped;
+                // create proof ElGamal encryption value is same as commitment
+                crate::dleq::prove_eqaulity(
+                    &mut prover,
+                    ri_prime.clone(),
+                    ri_encryption,
+                    public_encryption_key,
+                    params.elgamal_base,
+                    commit.C,
+                );
 
-                    crate::dleq::prove_eqaulity(
-                        &mut prover,
-                        ri_prime.clone(),
-                        ri_encryption,
-                        anticipated_attestation,
-                        params.elgamal_base,
-                        commit.C,
-                    );
-
-                    // assert!(crate::dleq::verify_eqaulity(&proof_system, &proof, ri_encryption, sig_point, params.elgamal_base, commit.C));
-                    // one-time pad of the signature in Z_q
-                    let padded_secret = ri + secret_sig_share;
-                    encryptions.push((ri_encryption, padded_secret));
-                }
+                // one-time pad of the secret in Z_q
+                let padded_secret = ri + secrets_to_be_encrpted[ve_index];
+                encryptions.push((ri_encryption, padded_secret));
             }
         }
 
         let proof = prover.prove_batchable();
 
-        let polys = scalar_polys
-            .into_iter()
-            .map(|mut poly| {
-                poly.pop_front();
-                poly.to_point_poly()
-            })
-            .collect();
-
         Ok(Message3 {
             proof,
             encryptions,
             openings,
-            polys,
         })
     }
 }

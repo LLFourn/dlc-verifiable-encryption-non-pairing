@@ -11,12 +11,12 @@ pub fn prove_eqaulity(
     prover: &mut Prover<'_>,
     ri_prime: Scalar,
     ri_encryption: Point,
-    sig_point: Point,
+    public_encryption_key: Point,
     commit_base: Point,
     commit: (Point, Point),
 ) {
     let enc_sub = ri_encryption - commit.1;
-    let sig_sub = sig_point - commit_base;
+    let sig_sub = public_encryption_key - commit_base;
     let statement = ((G.basepoint(), commit.0), (sig_sub, enc_sub));
     let witness = prover.allocate_scalar(b"ri_prime", ri_prime);
 
@@ -32,12 +32,13 @@ pub fn prove_eqaulity(
 pub fn verify_eqaulity(
     verifier: &mut Verifier<'_>,
     ri_encryption: Point,
-    sig_point: Point,
+    public_encryption_key: Point,
     commit_base: Point,
     commit: (Point, Point),
 ) {
     let enc_sub = ri_encryption - commit.1;
-    let sig_sub = sig_point - commit_base;
+    let sig_sub = public_encryption_key - commit_base;
+
     let statement = ((G.basepoint(), commit.0), (sig_sub, enc_sub));
     let witness_var = verifier.allocate_scalar(b"ri_prime");
 

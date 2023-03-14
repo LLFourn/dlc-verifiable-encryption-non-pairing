@@ -3,12 +3,10 @@ use sha2::{digest::Digest, Sha256};
 
 #[derive(Clone, Debug)]
 pub struct Params {
-    pub oracle_keys: Vec<(Point, Point)>,
     pub closed_proportion: f64,
     pub bucket_size: u8,
-    pub threshold: u16,
-    pub n_outcomes: u32,
     pub elgamal_base: Point,
+    pub n_encryptions: usize,
 }
 
 impl Params {
@@ -17,26 +15,11 @@ impl Params {
     }
 
     pub fn NB(&self) -> usize {
-        self.bucket_size as usize * self.n_outcomes as usize * self.oracle_keys.len()
+        self.n_encryptions * self.bucket_size as usize
     }
 
     pub fn num_openings(&self) -> usize {
         self.M() - self.NB()
-    }
-
-    pub fn iter_anticipations(&self, oracle_index: usize) -> impl Iterator<Item = Point> {
-        let mut acc = self.oracle_keys[oracle_index].0;
-        let nonce = self.oracle_keys[oracle_index].1;
-        (0..self.n_outcomes).map(move |_| {
-            acc = nonce + acc;
-            acc
-        })
-    }
-
-    pub fn anticipate_at_index(&self, oracle_index: usize, index: u32) -> Point {
-        let index = Scalar::from(index);
-        let (oracle_key, oracle_nonce) = self.oracle_keys[oracle_index];
-        oracle_key + (index + Scalar::one()) * oracle_nonce
     }
 }
 
@@ -61,19 +44,13 @@ pub fn map_G_to_Zq(point: Point, pad: [u8; 32]) -> Scalar {
     Scalar::from_bytes_mod_order(ri_bytes.try_into().unwrap())
 }
 
-pub fn compute_optimal_params(security_param: u8, n_outcomes: u32, n_oracles: u32) -> (f64, u8) {
-    if n_outcomes * n_oracles == 1 {
+pub fn compute_optimal_params(security_param: u8, n_encryptions: usize) -> (f64, u8) {
+    if n_encryptions == 1 {
         // this is cheating and not quite right
         return (0.5, security_param);
     }
-    let n_outcomes = n_outcomes as f64;
-    let n_oracles = n_oracles as f64;
-    let N = n_outcomes * n_oracles;
+    let N = n_encryptions as f64;
     let s = security_param as f64;
-    // In order to actually succeed the adversary most corrupt a bucket the chosen outcome. This
-    // happens with (1/<number of outcomes>) probability so we can relax overall security parameter
-    // by log2(<number of outcomes>).
-    let s = s - n_outcomes.log2();
 
     let (B, p, _) = (500..999)
         .filter_map(|p| {
